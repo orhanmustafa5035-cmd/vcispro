@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VCIS PRO - Management Console</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --sidebar-bg: #1e293b;
+            --accent-color: #6366f1;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        body, html { 
+            height: 100%; 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+        }
+        
+        #loginOverlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle at center, rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.95)), 
+                        url('https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&w=1600&q=80') center/cover no-repeat;
+            z-index: 999999; display: flex; align-items: center; justify-content: center;
+        }
+        
+        .login-card { 
+            width: 380px; 
+            background: rgba(30, 41, 59, 0.85); 
+            padding: 35px 30px; 
+            border-radius: 20px; 
+            border: 1px solid var(--border-color);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(16px);
+            color: #fff;
+        }
+
+        .login-logo {
+            width: 72px; height: 72px; object-fit: cover; border-radius: 18px;
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            padding: 12px; margin-bottom: 16px;
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.3);
+        }
+
+        .form-control, .form-select {
+            background: rgba(15, 23, 42, 0.6) !important;
+            border: 1px solid var(--border-color) !important;
+            color: #fff !important;
+            border-radius: 10px !important;
+            padding: 10px 14px; font-size: 14px;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent-color) !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2) !important;
+        }
+
+        .btn-custom-primary {
+            background: linear-gradient(135deg, #6366f1, #4f46e5);
+            color: #fff; border: none; border-radius: 10px; font-weight: 600;
+        }
+
+        .wrapper { display: flex; height: 100vh; }
+        
+        .sidebar { 
+            width: 380px; background: var(--sidebar-bg); 
+            border-right: 1px solid var(--border-color); 
+            display: flex; flex-direction: column; z-index: 1000;
+        }
+
+        .sidebar-header {
+            padding: 16px 20px;
+            background: rgba(15, 23, 42, 0.4);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .content { flex: 1; position: relative; }
+        #map { width: 100%; height: 100%; }
+        
+        .btn-add-plus {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 10px rgba(34, 197, 94, 0.3);
+        }
+
+        .btn-add-plus:hover {
+            transform: scale(1.08);
+            color: white;
+            box-shadow: 0 6px 15px rgba(34, 197, 94, 0.4);
+        }
+
+        .area-item { 
+            padding: 14px 18px; margin: 6px 12px; border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid transparent; cursor: pointer; transition: all 0.2s ease;
+        }
+
+        .area-item:hover { 
+            background: rgba(255, 255, 255, 0.05); 
+            border-color: var(--border-color); transform: translateX(3px);
+        }
+
+        .area-item.active { 
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15)); 
+            border-color: var(--accent-color) !important;
+        }
+
+        /* DAHA KİÇİK VƏ İNCƏ DETAL PANELİ */
+        .info-panel { 
+            position: absolute; top: 16px; right: 16px; z-index: 1000; 
+            background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(12px);
+            padding: 12px 16px; border-radius: 14px; border: 1px solid var(--border-color);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4); width: 260px; color: #fff;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--sidebar-bg); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+<div id="loginOverlay">
+    <div class="login-card text-center">
+        <img src="https://cdn-icons-png.flaticon.com/512/854/854878.png" alt="Logo" class="login-logo">
+        <h3 class="fw-bold mb-1">VCIS PRO</h3>
+        <p class="text-secondary small mb-4">Ərazi və Tahkimçi İdarəetmə Sistemi</p>
+        
+        <div id="loginAlert" class="alert alert-danger py-2 small" style="display:none; border-radius:8px;"></div>
+        
+        <div class="mb-3 text-start">
+            <label class="form-label small text-secondary fw-semibold">İstifadəçi Adı</label>
+            <input type="text" id="username" class="form-control" placeholder="admin və ya user">
+        </div>
+        <div class="mb-4 text-start">
+            <label class="form-label small text-secondary fw-semibold">Şifrə</label>
+            <input type="password" id="password" class="form-control" placeholder="••••••••">
+        </div>
+        <button type="button" onclick="loginUser()" class="btn btn-custom-primary w-100 py-2 fs-6">Sistemə Daxil Ol 🚀</button>
+    </div>
+</div>
+
+<div class="wrapper" id="mainWrapper" style="display:none;">
+    <div class="sidebar">
+        <div class="sidebar-header d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="m-0 fw-bold text-white">VCIS PRO</h5>
+                <small class="text-secondary" style="font-size:11px;">Management Dashboard</small>
+            </div>
+            
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn-add-plus" id="addPlusBtn" title="Yeni Tahkimçi Əlavə Et" onclick="showAddAreaModal()" style="display:none;">+</button>
+                <span class="badge bg-primary rounded-pill px-2.5 py-1.5" id="areaCount" style="background: var(--accent-color) !important; font-size:12px;">0</span>
+            </div>
+        </div>
+        
+        <div class="p-2 px-3 border-bottom border-secondary border-opacity-10 d-grid" id="saveBtnContainer" style="display:none;">
+            <button class="btn btn-custom-primary fw-semibold btn-sm py-1.5" style="font-size:13px;" onclick="saveMapGeometry()">💾 Sərhədləri Yadda Saxla</button>
+        </div>
+
+        <div class="p-3">
+            <input type="text" id="searchInput" class="form-control" placeholder="🔍 Axtarış edin..." onkeyup="filterAreas()">
+        </div>
+
+        <div class="flex-grow-1 overflow-auto px-1" id="areaList"></div>
+    </div>
+
+    <div class="content">
+        <div id="map"></div>
+        
+        <!-- YIĞCAM VƏ MİNİMALİST DETAL PANELSİ -->
+        <div class="info-panel" id="infoPanel" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="badge bg-indigo text-white rounded-pill px-2 py-0.5" id="panelCodeBadge" style="background: var(--accent-color); font-size:11px;">[----]</span>
+                <div class="d-flex align-items-center gap-1">
+                    <button class="btn btn-link text-secondary p-0 border-0 me-1" title="Ayarlar" onclick="showSettingsModal()" style="font-size:13px;">⚙️</button>
+                    <button class="btn-close btn-close-white" style="font-size:10px;" onclick="document.getElementById('infoPanel').style.display='none'"></button>
+                </div>
+            </div>
+            <h6 id="panelTitle" class="fw-bold text-white m-0" style="font-size:13.5px; line-height:1.3;"></h6>
+            <div id="panelPosition" class="text-secondary small mt-1 mb-2" style="font-size:11.5px;"></div>
+            <div class="d-flex justify-content-between align-items-center border-top border-secondary border-opacity-20 pt-2">
+                <span class="text-muted" style="font-size:11px;">Obyekt Sayı:</span>
+                <span id="panelArea" class="badge bg-dark border border-secondary text-info fw-bold" style="font-size:11px;"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: AYARLAR -->
+<div class="modal fade" id="settingsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title fw-bold">⚙️ Hesab və Sistem Ayarları</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <ul class="nav nav-pills nav-fill mb-3" id="settingsTab">
+          <li class="nav-item">
+            <button class="nav-link active small py-1.5" data-bs-toggle="tab" data-bs-target="#tabPhoto">🖼️ Profil Şəkli</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link small py-1.5" data-bs-toggle="tab" data-bs-target="#tabPassword">🔑 Şifrə</button>
+          </li>
+          <li class="nav-item">
+            <button class="nav-link small py-1.5" data-bs-toggle="tab" data-bs-target="#tabSystem">⚙️ Tənzimləmə</button>
+          </li>
+        </ul>
+
+        <div class="tab-content pt-2">
+          <div class="tab-pane fade show active" id="tabPhoto">
+            <div class="text-center mb-3">
+                <img id="profilePreview" src="https://via.placeholder.com/100" class="rounded-circle border border-secondary" width="90" height="90" style="object-fit:cover;">
+            </div>
+            <input type="file" id="photoInput" class="form-control mb-3" accept="image/*" onchange="previewImage(event)">
+            <button class="btn btn-custom-primary btn-sm w-100 py-2" onclick="saveProfilePhoto()">Şəkli Yadda Saxla</button>
+          </div>
+
+          <div class="tab-pane fade" id="tabPassword">
+            <input type="password" id="oldPass" class="form-control mb-2" placeholder="Cari Şifrə">
+            <input type="password" id="newPass" class="form-control mb-2" placeholder="Yeni Şifrə">
+            <input type="password" id="confirmPass" class="form-control mb-3" placeholder="Yeni Şifrə (Təkrar)">
+            <button class="btn btn-success btn-sm w-100 py-2" onclick="changePassword()">Şifrəni Yenilə</button>
+          </div>
+
+          <div class="tab-pane fade" id="tabSystem">
+            <div class="form-check form-switch mb-3">
+              <input class="form-check-input" type="checkbox" id="autoSaveSwitch" checked>
+              <label class="form-check-label small" for="autoSaveSwitch">Çəkim zamanı avtomatik yadda saxla</label>
+            </div>
+            <button class="btn btn-custom-primary btn-sm w-100 py-2" onclick="saveSettings()">Tənzimləmələri Qeyd Et</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: YENİ SAHƏ -->
+<div class="modal fade" id="addAreaModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title fw-bold">Yeni Tahkimçi Əlavə Et</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="newCode" class="form-control mb-2" placeholder="Kod ID (Məs: 2907)">
+        <input type="text" id="newName" class="form-control mb-2" placeholder="Ad Soyad (Məs: Əliyev Məmməd)">
+        <input type="text" id="newPos" class="form-control mb-2" placeholder="Ərazi / Məhəllələr">
+        <input type="text" id="newAreaVal" class="form-control mb-2" placeholder="Obyekt Sayı">
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Ləğv Et</button>
+        <button type="button" class="btn btn-success btn-sm fw-bold px-3" onclick="saveNewArea()">Yadda Saxla</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+let map, drawnItems, selectedArea = null, allAreas = [], currentUser = null;
+let addModal, settingsModal;
+
+function loginUser() {
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('password').value.trim();
+    const alertBox = document.getElementById('loginAlert');
+
+    if (u === 'admin' && p === 'admin123') currentUser = 'admin';
+    else if (u === 'user' && p === 'user123') currentUser = 'user';
+    else {
+        alertBox.innerText = 'Yanlış istifadəçi adı və ya şifrə!';
+        alertBox.style.display = 'block';
+        return;
+    }
+
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('mainWrapper').style.display = 'flex';
+
+    if (currentUser === 'admin') {
+        document.getElementById('addPlusBtn').style.display = 'flex';
+        document.getElementById('saveBtnContainer').style.display = 'grid';
+    }
+
+    addModal = new bootstrap.Modal(document.getElementById('addAreaModal'));
+    settingsModal = new bootstrap.Modal(document.getElementById('settingsModal'));
+    
+    initMap();
+    fetchAreas();
+}
+
+function initMap() {
+    if (map) return;
+
+    let googleHybridAZ = L.tileLayer('https://mt1.google.com/vt/lyrs=y&hl=az&x={x}&y={y}&z={z}', { maxZoom: 20 });
+    let googleStreetsAZ = L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=az&x={x}&y={y}&z={z}', { maxZoom: 20 });
+
+    map = L.map('map', { center: [40.5897, 49.6686], zoom: 11, layers: [googleHybridAZ] });
+
+    L.control.layers({ 
+        "🛰️ Hibrid (Peyk + AZ)": googleHybridAZ,
+        "🗺️ Küçə Xəritəsi (AZ)": googleStreetsAZ
+    }).addTo(map);
+
+    drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    if (currentUser === 'admin') {
+        let drawControl = new L.Control.Draw({
+            edit: { featureGroup: drawnItems },
+            draw: { polygon: true, polyline: true, rectangle: true, circle: false, marker: true, circlemarker: false }
+        });
+        map.addControl(drawControl);
+
+        map.on(L.Draw.Event.CREATED, function (e) {
+            drawnItems.addLayer(e.layer);
+        });
+    }
+}
+
+function fetchAreas() {
+    fetch('/api/areas')
+        .then(res => res.json())
+        .then(data => {
+            allAreas = data;
+            renderAreas(allAreas);
+        });
+}
+
+function renderAreas(list) {
+    document.getElementById('areaCount').innerText = list.length;
+    const container = document.getElementById('areaList');
+    container.innerHTML = '';
+    list.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'area-item' + (selectedArea && selectedArea.code === item.code ? ' active' : '');
+        div.innerHTML = `<div style="font-size:14px;"><strong>[${item.code}]</strong> ${item.name}</div><small style="font-size:12px;">${item.position}</small>`;
+        div.onclick = () => selectArea(item, div);
+        container.appendChild(div);
+    });
+}
+
+function selectArea(item, el) {
+    selectedArea = item;
+    document.querySelectorAll('.area-item').forEach(d => d.classList.remove('active'));
+    if(el) el.classList.add('active');
+
+    document.getElementById('infoPanel').style.display = 'block';
+    document.getElementById('panelCodeBadge').innerText = `ID: ${item.code}`;
+    document.getElementById('panelTitle').innerText = item.name;
+    document.getElementById('panelPosition').innerText = item.position;
+    document.getElementById('panelArea').innerText = item.area;
+
+    drawnItems.clearLayers();
+    fetch(`/api/areas/${item.code}/geometry`)
+        .then(res => res.json())
+        .then(geojson => {
+            if (geojson && Object.keys(geojson).length > 0) {
+                const layer = L.geoJSON(geojson);
+                layer.eachLayer(l => drawnItems.addLayer(l));
+                try { map.fitBounds(layer.getBounds()); } catch(e) {}
+            }
+        });
+}
+
+function saveMapGeometry() {
+    if (currentUser !== 'admin') return;
+    if (!selectedArea) {
+        alert("Lütfən əvvəlcə sol siyahıdan sahə seçin!");
+        return;
+    }
+
+    const data = drawnItems.toGeoJSON();
+    
+    fetch(`/api/areas/${selectedArea.code}/geometry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    }).then(res => {
+        if (res.ok) alert('Sərhədlər UĞURLA YADDA SAXLANILDI!');
+        else alert('Xəta baş verdi.');
+    });
+}
+
+function showAddAreaModal() { addModal.show(); }
+function showSettingsModal() { settingsModal.show(); }
+
+function previewImage(event) {
+    const reader = new FileReader();
+    reader.onload = function(){ document.getElementById('profilePreview').src = reader.result; };
+    reader.readAsDataURL(event.target.files[0]);
+}
+
+function saveProfilePhoto() { alert('Profil şəkli yeniləndi!'); }
+function changePassword() { alert('Şifrə yeniləndi!'); }
+function saveSettings() { alert('Ayarlar qeyd olundu!'); settingsModal.hide(); }
+
+function saveNewArea() {
+    const code = document.getElementById('newCode').value.trim();
+    const name = document.getElementById('newName').value.trim();
+    const pos = document.getElementById('newPos').value.trim();
+    const area = document.getElementById('newAreaVal').value.trim();
+
+    if(!code || !name) { alert('Məlumatları doldurun!'); return; }
+
+    fetch('/api/areas/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, name, position: pos, area })
+    }).then(res => res.json()).then(() => {
+        addModal.hide();
+        fetchAreas();
+    });
+}
+
+function filterAreas() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const filtered = allAreas.filter(a => 
+        a.code.toLowerCase().includes(q) || 
+        a.name.toLowerCase().includes(q) || 
+        a.position.toLowerCase().includes(q)
+    );
+    renderAreas(filtered);
+}
+</script>
+</body>
+</html>
